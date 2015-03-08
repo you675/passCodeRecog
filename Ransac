@@ -1,0 +1,57 @@
+#include "passCode.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <cv.h>
+#include <math.h>
+#define MATCH_POINT_NUM 3    //定义初始匹配点对为3个
+#define MATCH_ERROR 5  //匹配误差设为5
+#define LOOP_NUM 100   //设置循环次数为100
+
+int* ransac(IplImage* templateEdgeImg, int* corrdinate, int edgePointNum)
+{
+	int i, j, k, l;
+	int innerPointNum = 0;     //坐标变换模型内点数目
+	int rand_index = 0;
+	double templateRandCorr[MATCH_POINT_NUM][3];   //模板随机坐标,采用齐次坐标系
+	double passCodeRandCorr[MATCH_POINT_NUM][3];   //验证码随机坐标
+	double invertMatrix[3][3];                    //验证码坐标矩阵的逆矩阵
+	double corrTranMatrix[3][3];          //坐标变换矩阵
+	CvMat templateRandMat = cvMat(3, 3, CV_64FC1, templateRandCorr);
+	CvMat passCodeRandMat = cvMat(3, 3, CV_64FC1, passCodeRandCorr);
+	CvMat inverseMat = cvMat(3, 3, CV_64FC1, invertMatrix);
+	CvMat corrTranMat = cvMat(3, 3, CV_64FC1, corrTranMatrix);
+	for (i = 0; i < LOOP_NUM; i++)
+	{
+		for (j = 0; j < MATCH_POINT_NUM; j++)     //随机选出3个匹配点对
+		{
+			rand_index = rand() % edgePointNum;      //在edgePointNum个点中随机选取一个点
+			passCodeRandCorr[0][j] = corrdinate[rand_index * 4 + 0];            //提取验证码边缘点的横坐标
+			passCodeRandCorr[1][j] = corrdinate[rand_index * 4 + 1];            //提取验证码边缘点的纵坐标
+			passCodeRandCorr[2][j] = 1;
+			templateRandCorr[0][j] = corrdinate[rand_index * 4 + 2];            //提取模板边缘点的横坐标
+			templateRandCorr[1][j] = corrdinate[rand_index * 4 + 3];            //提取模板边缘点的纵坐标
+			templateRandCorr[2][j] = 1;
+		}
+
+		cvInvert(&templateRandMat, &inverseMat, CV_LU);              //对验证码匹配点的坐标矩阵求逆,求逆方式采用高斯消元法
+		cvGEMM(&passCodeRandMat, &inverseMat, 1, NULL, 0, &corrTranMat, 0);    //求坐标变换矩阵
+		
+		//求内点数
+		for (j = 0; j < edgePointNum; j++)
+		{
+			if ((*corrTranMat.data.db * corrdinate[j * 4 + 2] + *(corrTranMat.data.db + 1) * corrdinate[j * 4 + 3] 
+				+ *(corrTranMat.data.db + 2) - corrdinate[j * 4 + 0]) <= 5
+				&&
+				(*(corrTranMat.data.db + 3) * corrdinate[j * 4 + 2] + *(corrTranMat.data.db + 4) * corrdinate[j * 4 + 3] 
+				+ *(corrTranMat.data.db + 5) - corrdinate[j * 4 + 1]) <= 5)
+			{
+				innerPointNum++;
+			}
+
+			if (innerPointNum >= 0.66 * edgePointNum)
+			{
+
+			}
+		}
+	}
+}
